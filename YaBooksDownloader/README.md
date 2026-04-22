@@ -17,6 +17,7 @@
 
 ### Способ 1: Разработка (для тестирования)
 
+0. Скачайте https://github.com/NetFoXZX/Books/archive/refs/heads/master.zip и распакуйте в папку `YaBooksDownloader`
 1. Откройте Yandex Browser (или Chrome)
 2. Перейдите в `chrome://extensions/` (или `browser://extensions/`)
 3. Включите "Режим разработчика" (Developer mode)
