@@ -1,0 +1,16 @@
+{
+  "name": "yandex-books-downloader_real",
+  "version": "1.0.0",
+  "description": "Расширение для Yandex Browser (Chrome) для скачивания книг с books.yandex.ru в формате EPUB.",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

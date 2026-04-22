@@ -1,0 +1,152 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+}
+
+.container {
+  width: 360px;
+  min-height: 330px;
+  background: white;
+}
+
+header {
+  background: linear-gradient(135deg, #fc3f1c 0%, #ff6b4a 100%);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+main {
+  padding: 20px;
+}
+
+.status {
+  text-align: center;
+  color: #666;
+  padding: 30px 20px;
+}
+
+.status p {
+  font-size: 14px;
+}
+
+.book-info {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 30px 20px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.book-id {
+  font-size: 24px;
+  color: #333;
+  font-weight: 500;
+}
+
+.book-id span {
+  font-family: monospace;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #fc3f1c 0%, #ff6b4a 100%);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(252, 63, 28, 0.4);
+}
+
+.btn-secondary {
+  background: #e9ecef;
+  color: #333;
+}
+
+.btn-secondary:hover {
+  background: #dee2e6;
+}
+
+.progress {
+  margin-top: 15px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fc3f1c 0%, #ff6b4a 100%);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+#progressText {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+}
+
+.error {
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  color: #c62828;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 15px;
+}
+
+footer {
+  text-align: center;
+  padding: 15px;
+  border-top: 1px solid #eee;
+  color: #999;
+  font-size: 12px;
+}
+
+.hidden {
+  display: none !important;
+}

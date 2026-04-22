@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yandex Books Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📚 Yandex Books Downloader</h1>
+    </header>
+    
+    <main>
+      <div id="status" class="status">
+        <p>Откройте книгу для скачивания</p>
+      </div>
+      
+      <div id="bookInfo" class="book-info hidden">
+        <p class="book-id">ID: <span id="bookId"></span></p>
+      </div>
+      
+      <div class="actions">
+        <button id="downloadBtn" class="btn btn-primary" disabled>
+          📥 Скачать EPUB
+        </button>
+        <button id="refreshBtn" class="btn btn-secondary">
+          🔄 Обновить
+        </button>
+      </div>
+      
+      <div id="progress" class="progress hidden">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText">Подготовка...</p>
+      </div>
+      
+      <div id="error" class="error hidden"></div>
+    </main>
+    
+    <footer>
+      <p>v1.0.5</p>
+    </footer>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
