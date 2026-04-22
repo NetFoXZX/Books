@@ -4,7 +4,7 @@
 
 # Yandex Books Downloader - Расширение для браузера
 
-Расширение для Yandex Browser (Chrome) для скачивания книг с books.yandex.ru в формате EPUB.
+Это простое расширение для Yandex Browser (Chrome) для скачивания книг с books.yandex.ru в формате EPUB.
 
 ## Особенности
 
@@ -22,14 +22,17 @@
 3. Включите "Режим разработчика" (Developer mode)
 4. Нажмите "Загрузить распакованное расширение" (Load unpacked)
 5. Выберите папку `YaBooksDownloader`
+   <img width="692" height="414" alt="image" src="https://github.com/user-attachments/assets/458b9bc7-54f4-444d-b009-8be0d75ecabf" />
+
 
 
 ## Использование
 
 1. Откройте книгу на [books.yandex.ru](https://books.yandex.ru)
-2. Нажмите на значок расширения в панели инструментов
-3. Нажмите "Скачать EPUB"
-4. Дождитесь завершения скачивания
+2. Нажмите на значок расширения в панели инструментов <img width="36" height="34" alt="image" src="https://github.com/user-attachments/assets/88a1ed05-a4e8-43a0-a3ff-5720942f8e4a" />
+
+3. Нажмите "Скачать EPUB" (на значке расширения появится анимация)
+4. Дождитесь завершения скачивания (анимированый зленеый квдрат пропадет)
 
 ## Структура проекта
 
