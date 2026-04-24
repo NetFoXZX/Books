@@ -65,12 +65,13 @@ main {
 
 .actions {
   display: flex;
+  flex-direction: column;
   gap: 10px;
   margin-bottom: 15px;
 }
 
 .btn {
-  flex: 1;
+  width: 100%;
   padding: 12px 16px;
   border: none;
   border-radius: 8px;
@@ -102,6 +103,38 @@ main {
 
 .btn-secondary:hover {
   background: #dee2e6;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.zip-notification {
+  background: #e8f5e9;
+  border: 1px solid #81c784;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.zip-info {
+  margin-bottom: 12px;
+}
+
+.zip-info p {
+  font-size: 13px;
+  color: #2e7d32;
+  margin: 4px 0;
+}
+
+.zip-info strong {
+  font-size: 14px;
 }
 
 .progress {

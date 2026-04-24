@@ -1,19 +1,31 @@
 {
   "manifest_version": 3,
   "name": "Yandex Books Downloader by NeTFoXZX",
-  "version": "1.0.5",
-  "description": "Скачивайте книги с Yandex Books в формате EPUB",
+  "version": "1.0.9",
+  "description": "Скачивайте книги с Yandex Books в формате EPUB и MP3",
   "permissions": [
     "activeTab",
     "storage",
     "downloads",
     "scripting",
-    "cookies"
+    "cookies",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://books.yandex.ru/*",
-    "https://yandex.ru/books/*"
+    "https://yandex.ru/books/*",
+    "https://audio.bookmate.ru/*"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

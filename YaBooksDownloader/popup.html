@@ -25,6 +25,9 @@
         <button id="downloadBtn" class="btn btn-primary" disabled>
           📥 Скачать EPUB
         </button>
+        <button id="downloadAudioBtn" class="btn btn-primary hidden">
+          🎧 Скачать MP3
+        </button>
         <button id="refreshBtn" class="btn btn-secondary">
           🔄 Обновить
         </button>
@@ -38,10 +41,25 @@
       </div>
       
       <div id="error" class="error hidden"></div>
+      
+      <!-- Уведомление о готовом ZIP архиве -->
+      <div id="zipNotification" class="zip-notification hidden">
+        <div class="zip-info" id="zipInfo">
+          <p><strong>Готов ZIP архив!</strong></p>
+        </div>
+        <button id="zipDownloadBtn" class="btn btn-success">
+          💾 Скачать ZIP
+        </button>
+      </div>
+      
+      <!-- Кнопка очистки хранилища -->
+      <button id="clearStorageBtn" class="btn btn-secondary" style="margin-top: 10px;">
+        🗑️ Очистить хранилище
+      </button>
     </main>
     
     <footer>
-      <p>v1.0.5</p>
+      <p>v1.4.0</p>
     </footer>
   </div>
   
