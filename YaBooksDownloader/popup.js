@@ -124,17 +124,37 @@ function showZipNotification(records) {
   const totalSize = records.reduce((sum, r) => sum + (r.data?.size || 0), 0);
   const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
   
-  zipInfoEl.innerHTML = `
-    <p><strong>Готов ${count} архив${count === 1 ? '' : 'а'}</strong></p>
-    <p>Размер: ~${sizeMB} MB</p>
-    <p style="font-size: 11px; color: #666;">Нажмите кнопку ниже чтобы скачать</p>
-  `;
+  // Проверяем, это части одного архива или разные архивы
+  const isParts = records.some(r => r.id.includes('_part'));
+  
+  if (isParts) {
+    // Сортируем части по номеру
+    records.sort((a, b) => {
+      const matchA = a.id.match(/_part(\d+)$/);
+      const matchB = b.id.match(/_part(\d+)$/);
+      const numA = matchA ? parseInt(matchA[1]) : 0;
+      const numB = matchB ? parseInt(matchB[1]) : 0;
+      return numA - numB;
+    });
+    
+    zipInfoEl.innerHTML = `
+      <p><strong>Готов архив из ${count} частей</strong></p>
+      <p>Размер: ~${sizeMB} MB (общий)</p>
+      <p style="font-size: 11px; color: #666;">Нажмите кнопку ниже чтобы скачать все части</p>
+    `;
+  } else {
+    zipInfoEl.innerHTML = `
+      <p><strong>Готов ${count} архив${count === 1 ? '' : 'а'}</strong></p>
+      <p>Размер: ~${sizeMB} MB</p>
+      <p style="font-size: 11px; color: #666;">Нажмите кнопку ниже чтобы скачать</p>
+    `;
+  }
   
   zipNotificationEl.classList.remove('hidden');
   
   // Привязываем обработчик к кнопке
   if (zipDownloadBtn) {
-    zipDownloadBtn.onclick = () => downloadLatestZip(records);
+    zipDownloadBtn.onclick = () => downloadAllZips(records);
   }
 }
 
@@ -145,13 +165,50 @@ function hideZipNotification() {
   }
 }
 
-// Скачать последний архив
-async function downloadLatestZip(records) {
+// Скачать все архивы (или все части одного архива)
+async function downloadAllZips(records) {
   if (!records || records.length === 0) return;
   
-  // Берем последнюю запись (самый свежий)
-  const record = records[records.length - 1];
+  // Проверяем, это части одного архива или разные архивы
+  const isParts = records.some(r => r.id.includes('_part'));
   
+  try {
+    if (isParts) {
+      // Сортируем части по номеру
+      records.sort((a, b) => {
+        const matchA = a.id.match(/_part(\d+)$/);
+        const matchB = b.id.match(/_part(\d+)$/);
+        const numA = matchA ? parseInt(matchA[1]) : 0;
+        const numB = matchB ? parseInt(matchB[1]) : 0;
+        return numA - numB;
+      });
+      
+      log(`Скачивание ${records.length} частей архива...`);
+      
+      // Скачиваем каждую часть
+      for (const record of records) {
+        await downloadSingleZip(record);
+      }
+      
+      showStatus(`Все ${records.length} частей архива успешно сохранены!`);
+    } else {
+      // Скачиваем только последний (самый свежий) архив
+      const record = records[records.length - 1];
+      await downloadSingleZip(record);
+      showStatus('Аудиокнига успешно сохранена!');
+    }
+    
+    // Очищаем бейдж на иконке
+    chrome.runtime.sendMessage({ action: 'clearBadge' });
+    
+  } catch (error) {
+    log(`Ошибка скачивания: ${error.message}`);
+    showError(`Ошибка скачивания: ${error.message}`);
+  }
+}
+
+// Скачать один ZIP архив
+async function downloadSingleZip(record) {
   try {
     log(`Начинаю скачивание архива: ${record.id}`);
     
@@ -177,7 +234,20 @@ async function downloadLatestZip(records) {
     const blobUrl = URL.createObjectURL(blob);
     
     // Генерируем имя файла из ID
-    const fileName = `audiobook_${Date.now()}.zip`;
+    // Если это часть архива, используем имя части, иначе генерируем новое
+    let fileName;
+    if (record.id.includes('_part')) {
+      // Извлекаем base ID и номер части
+      const match = record.id.match(/^(.+)_part(\d+)$/);
+      if (match) {
+        const partNum = match[2];
+        fileName = `audiobook_part${partNum}.zip`;
+      } else {
+        fileName = `audiobook_${Date.now()}.zip`;
+      }
+    } else {
+      fileName = `audiobook_${Date.now()}.zip`;
+    }
     
     log('Сохранение ZIP архива...');
     
@@ -207,17 +277,9 @@ async function downloadLatestZip(records) {
     
     // Освобождаем Blob URL
     URL.revokeObjectURL(blobUrl);
-    
-    // Скрываем уведомление
-    hideZipNotification();
-    
-    // Очищаем бейдж на иконке
-    chrome.runtime.sendMessage({ action: 'clearBadge' });
-    
-    showStatus('Аудиокнига успешно сохранена!');
   } catch (error) {
-    log(`Ошибка скачивания: ${error.message}`);
-    showError(`Ошибка скачивания: ${error.message}`);
+    log(`Ошибка при скачивании ${record.id}: ${error.message}`);
+    throw error;
   }
 }
 

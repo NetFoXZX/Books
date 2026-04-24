@@ -35,7 +35,7 @@ main {
 .status {
   text-align: center;
   color: #666;
-  padding: 30px 20px;
+  padding: 20px 10px;
 }
 
 .status p {
@@ -45,8 +45,8 @@ main {
 .book-info {
   background: #f8f9fa;
   border-radius: 8px;
-  padding: 30px 20px;
-  margin-bottom: 15px;
+  padding: 20px 10px;
+  margin-bottom: 10px;
   text-align: center;
 }
 
@@ -67,7 +67,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .btn {

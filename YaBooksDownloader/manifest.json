@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Yandex Books Downloader by NeTFoXZX",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Скачивайте книги с Yandex Books в формате EPUB и MP3",
   "permissions": [
     "activeTab",

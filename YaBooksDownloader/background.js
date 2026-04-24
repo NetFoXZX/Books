@@ -655,10 +655,13 @@ function extractAudioFiles(metadata) {
   return audioFiles;
 }
 
-// Скачать аудиокнигу и создать ZIP архив БЕЗ СЖАТИЯ
+// Максимальный размер архива: 600MB
+const MAX_ARCHIVE_SIZE = 950 * 1024 * 1024;
+
+// Скачать аудиокнигу и создать ZIP архив(ы) БЕЗ СЖАТИЯ
 // Сохраняет ZIP в IndexedDB и отправляет ID в popup
 async function downloadAudioAndSave(bookId, bookTitle) {
-  const archiveId = `audio_${bookId}_${Date.now()}`;
+  const archiveBaseId = `audio_${bookId}_${Date.now()}`;
   
   log(`Начало скачивания аудиокниги ${bookId}`);
   
@@ -697,9 +700,14 @@ async function downloadAudioAndSave(bookId, bookTitle) {
       throw new Error('Нет доступных для скачивания треков');
     }
     
-    // 2. Создаём ZIP архив БЕЗ СЖАТИЯ
-    const zip = new JSZip();
+    // 2. Создаём ZIP архив(ы) БЕЗ СЖАТИЯ
+    let partNumber = 1;
     let savedCount = 0;
+    let totalSavedCount = 0;
+    let currentZipSize = 0;
+    
+    // Создаем первый ZIP архив
+    let zip = new JSZip();
     
     // Скачиваем и добавляем каждый трек в ZIP по одному
     for (let i = 0; i < availableTracks.length; i++) {
@@ -744,18 +752,50 @@ async function downloadAudioAndSave(bookId, bookTitle) {
         }
         
         const arrayBuffer = await audioResponse.arrayBuffer();
+        const fileSize = arrayBuffer.byteLength;
         
         const duration = track.duration?.seconds || 0;
-        const fileName = `${String(i + 1).padStart(4, '0')}_track_${track.number}_${duration}s.m4a`;
+        const fileName = `${String(savedCount + 1).padStart(4, '0')}_track_${track.number}_${duration}s.m4a`;
+        
+        // Проверяем, не превысит ли файл лимит архива
+        if (currentZipSize + fileSize > MAX_ARCHIVE_SIZE && savedCount > 0) {
+          // Сохраняем текущий архив и создаем новый
+          log(`Достигнут лимит размера архива (${(MAX_ARCHIVE_SIZE / 1024 / 1024).toFixed(0)}MB). Сохраняем часть ${partNumber}...`);
+          
+          const archiveId = `${archiveBaseId}_part${partNumber}`;
+          const partFileName = `${baseTitle}_part${partNumber}.zip`;
+          
+          // Генерируем ZIP
+          const blob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'STORE',
+            compressionOptions: { level: 0 }
+          });
+          
+          log(`Размер части ${partNumber}: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+          
+          // Сохраняем в IndexedDB
+          await saveToDB(archiveId, blob);
+          
+          // Очищаем ZIP и начинаем новый архив
+          zip = new JSZip();
+          savedCount = 0;
+          currentZipSize = 0;
+          partNumber++;
+          
+          totalSavedCount += savedCount;
+          log(`Создана часть архива ${partNumber - 1}, всего файлов: ${savedCount}`);
+        }
         
         // Добавляем файл в ZIP БЕЗ СЖАТИЯ
         zip.file(fileName, arrayBuffer, { compression: 'STORE' });
         savedCount++;
+        currentZipSize += fileSize;
         
         // Освобождаем память
         void arrayBuffer;
         
-        log(`Трек ${i + 1}/${availableTracks.length} добавлен в архив`);
+        log(`Трек ${i + 1}/${availableTracks.length} добавлен в архив (часть ${partNumber}, размер: ${(currentZipSize / 1024 / 1024).toFixed(2)}MB)`);
         
         // Небольшая задержка для освобождения памяти
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -764,35 +804,44 @@ async function downloadAudioAndSave(bookId, bookTitle) {
       }
     }
     
-    if (savedCount === 0) {
+    if (savedCount === 0 && partNumber === 1) {
       throw new Error('Не удалось скачать ни одного трека');
     }
     
-    log(`Всего файлов в архиве: ${savedCount}. Генерируем ZIP...`);
-    
-    // 3. Генерируем ZIP БЕЗ СЖАТИЯ (STORE) как Blob
-    const blob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'STORE',
-      compressionOptions: { level: 0 }
-    });
+    // Сохраняем последний архив, если есть файлы
+    if (savedCount > 0) {
+      log(`Сохранение последней части архива ${partNumber}...`);
+      
+      const archiveId = `${archiveBaseId}_part${partNumber}`;
+      const partFileName = `${baseTitle}_part${partNumber}.zip`;
+      
+      // Генерируем ZIP
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'STORE',
+        compressionOptions: { level: 0 }
+      });
+      
+      log(`Размер части ${partNumber}: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Сохраняем в IndexedDB
+      await saveToDB(archiveId, blob);
+      
+      totalSavedCount += savedCount;
+      log(`Создана часть архива ${partNumber}, файлов: ${savedCount}`);
+    }
     
     // Освобождаем память от ZIP объекта
     void zip;
-    
-    log(`Размер ZIP: ${blob.size} байт`);
-    
-    // 4. Сохраняем Blob в IndexedDB
-    log(`Сохранение ZIP в IndexedDB с ID: ${archiveId}`);
-    await saveToDB(archiveId, blob);
     
     // 5. Устанавливаем бейдж на иконке (зеленая галочка)
     chrome.action.setBadgeText({ text: '✓' });
     chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
     
-    log(`Аудиокнига готова к сохранению! Треков: ${savedCount}`);
-    log(`Нажмите на иконку расширения чтобы скачать ZIP архив`);
-    return { success: true, savedCount };
+    const totalParts = partNumber;
+    log(`Аудиокнига готова к сохранению! Всего файлов: ${totalSavedCount}, частей: ${totalParts}`);
+    log(`Нажмите на иконку расширения чтобы скачать ZIP архив(ы)`);
+    return { success: true, savedCount: totalSavedCount, parts: totalParts };
   } catch (error) {
     log(`Ошибка: ${error.message}`);
     // Очистка при ошибке
