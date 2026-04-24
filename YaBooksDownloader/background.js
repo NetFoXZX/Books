@@ -705,6 +705,7 @@ async function downloadAudioAndSave(bookId, bookTitle) {
     let savedCount = 0;
     let totalSavedCount = 0;
     let currentZipSize = 0;
+    let globalFileCount = 0; // Глобальный счетчик файлов (не сбрасывается между частями)
     
     // Создаем первый ZIP архив
     let zip = new JSZip();
@@ -754,8 +755,8 @@ async function downloadAudioAndSave(bookId, bookTitle) {
         const arrayBuffer = await audioResponse.arrayBuffer();
         const fileSize = arrayBuffer.byteLength;
         
-        const duration = track.duration?.seconds || 0;
-        const fileName = `${String(savedCount + 1).padStart(4, '0')}_track_${track.number}_${duration}s.m4a`;
+        const fileName = `${String(globalFileCount + 1).padStart(4, '0')}_${baseTitle}.m4a`;
+        globalFileCount++;
         
         // Проверяем, не превысит ли файл лимит архива
         if (currentZipSize + fileSize > MAX_ARCHIVE_SIZE && savedCount > 0) {
@@ -784,7 +785,7 @@ async function downloadAudioAndSave(bookId, bookTitle) {
           partNumber++;
           
           totalSavedCount += savedCount;
-          log(`Создана часть архива ${partNumber - 1}, всего файлов: ${savedCount}`);
+          log(`Создана часть архива ${partNumber - 1}, файлов в части: ${savedCount}, глобально: ${globalFileCount}`);
         }
         
         // Добавляем файл в ZIP БЕЗ СЖАТИЯ
