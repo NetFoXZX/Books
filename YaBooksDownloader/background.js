@@ -710,7 +710,27 @@ async function downloadAudioAndSave(bookId, bookTitle) {
         
         // Получаем URL аудиофайла
         let audioUrl = track.offline?.max_bit_rate?.url;
-        audioUrl = audioUrl.replace('play.m3u8', 'play.m4a');
+        
+        // Получаем имя файла из EXT-X-MAP:URI плейлиста
+        try {
+          const playlistResponse = await fetch(audioUrl, {
+            method: 'GET',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+          });
+          
+          if (playlistResponse.ok) {
+            const playlistText = await playlistResponse.text();
+            const mapMatch = playlistText.match(/#EXT-X-MAP:URI="([^"]+)"/);
+            if (mapMatch && mapMatch[1]) {
+              const audioFileName = mapMatch[1];
+              audioUrl = audioUrl.replace('play.m3u8', audioFileName);
+              log(`Имя файла получено из EXT-X-MAP: ${audioFileName}`);
+            }
+          }
+        } catch (err) {
+          log(`Не удалось получить EXT-X-MAP из плейлиста, используем play.m4a по умолчанию`);
+          audioUrl = audioUrl.replace('play.m3u8', 'play.m4a');
+        }
         
         // Скачиваем аудиофайл
         const audioResponse = await fetch(audioUrl, {
