@@ -33,5 +33,55 @@
       "resourceTypes": ["xmlhttprequest", "media"],
       "requestDomains": ["audio.bookmate.ru"]
     }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Origin",
+          "operation": "remove"
+        }
+      ]
+    },
+    "condition": {
+      "resourceTypes": ["xmlhttprequest", "image"],
+      "requestDomains": ["comicbook.bookmate.ru"]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        {
+          "header": "Access-Control-Allow-Origin",
+          "operation": "set",
+          "value": "*"
+        },
+        {
+          "header": "Access-Control-Allow-Methods",
+          "operation": "set",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "header": "Access-Control-Allow-Headers",
+          "operation": "set",
+          "value": "Content-Type, Authorization, Cookie, app-user-agent, mcc, mnc, imei, subscription-country, app-locale, bookmate-version, bookmate-websocket-version, device-idfa, onyx-preinstall, auth-token, accept-encoding, user-agent"
+        },
+        {
+          "header": "Access-Control-Allow-Credentials",
+          "operation": "set",
+          "value": "true"
+        }
+      ]
+    },
+    "condition": {
+      "resourceTypes": ["xmlhttprequest", "image"],
+      "requestDomains": ["comicbook.bookmate.ru"]
+    }
   }
 ]

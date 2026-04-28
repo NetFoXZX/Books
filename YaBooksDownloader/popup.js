@@ -2,7 +2,8 @@
 
 let currentBookId = null;
 let currentBookTitle = null;
-let isAudioBook = false;
+let currentComicBookId = null;
+let bookType = 'book'; // 'book', 'audio', 'comic'
 
 // Элементы DOM
 const statusEl = document.getElementById('status');
@@ -10,6 +11,7 @@ const bookInfoEl = document.getElementById('bookInfo');
 const bookIdEl = document.getElementById('bookId');
 const downloadBtn = document.getElementById('downloadBtn');
 const downloadAudioBtn = document.getElementById('downloadAudioBtn');
+const downloadComicBtn = document.getElementById('downloadComicBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const progressEl = document.getElementById('progress');
 const progressFillEl = document.getElementById('progressFill');
@@ -21,6 +23,12 @@ const zipNotificationEl = document.getElementById('zipNotification');
 const zipDownloadBtn = document.getElementById('zipDownloadBtn');
 const zipInfoEl = document.getElementById('zipInfo');
 const clearStorageBtn = document.getElementById('clearStorageBtn');
+
+// Элементы авторизации
+const authorizeBtnEl = document.getElementById('authorizeBtn');
+const authStatusEl = document.getElementById('authStatus');
+const authStatusIconEl = document.getElementById('authStatusIcon');
+const authStatusTextEl = document.getElementById('authStatusText');
 
 // Открыть IndexedDB в popup
 function openDB() {
@@ -315,6 +323,7 @@ function hideProgress() {
 function setLoading(isLoading) {
   downloadBtn.disabled = isLoading;
   downloadAudioBtn.disabled = isLoading;
+  if (downloadComicBtn) downloadComicBtn.disabled = isLoading;
   refreshBtn.disabled = isLoading;
 }
 
@@ -331,11 +340,17 @@ async function getBookInfo() {
     console.log('Current tab URL:', tab.url);
     
     // Определяем тип книги по URL напрямую
-    const isAudio = /\/audiobooks\//.test(tab.url);
-    console.log('Is audio book:', isAudio);
+    let bookType = 'book';
+    if (/\/audiobooks\//.test(tab.url)) {
+      bookType = 'audio';
+    } else if (/\/comicbooks\//.test(tab.url)) {
+      bookType = 'comic';
+    }
+    console.log('Book type:', bookType);
     
     // Попытка получить информацию через content script
     let bookId = null;
+    let comicBookId = null;
     let bookTitle = null;
     
     try {
@@ -343,6 +358,11 @@ async function getBookInfo() {
       if (response && response.bookId) {
         bookId = response.bookId;
         bookTitle = response.bookTitle;
+        // Если content script вернул bookType, используем его
+        if (response.bookType) {
+          bookType = response.bookType;
+        }
+        comicBookId = response.comicBookId;
       }
     } catch (e) {
       // Content script может не ответить
@@ -357,8 +377,9 @@ async function getBookInfo() {
     if (bookId) {
       return { 
         bookId, 
+        comicBookId: comicBookId || bookId,
         bookTitle: bookTitle || null, 
-        bookType: isAudio ? 'audio' : 'book',
+        bookType: bookType,
         tabId: tab.id 
       };
     }
@@ -401,23 +422,32 @@ function hideStatus() {
 }
 
 // Показать информацию о книге
-function showBookInfo(bookId, isAudio = false) {
+function showBookInfo(bookId, bookType = 'book') {
   bookIdEl.textContent = bookId;
   bookInfoEl.classList.remove('hidden');
-  isAudioBook = isAudio;
   
-  console.log('showBookInfo called, isAudio:', isAudio);
+  console.log('showBookInfo called, bookType:', bookType);
   
-  // Всегда показываем обе кнопки, если это аудиокнига - показываем приоритетно MP3
-  if (isAudio) {
+  // Скрываем все кнопки сначала
+  downloadBtn.classList.add('hidden');
+  downloadAudioBtn.classList.add('hidden');
+  if (downloadComicBtn) downloadComicBtn.classList.add('hidden');
+  
+  // Показываем кнопки в зависимости от типа
+  if (bookType === 'audio') {
     // Для аудиокниг показываем обе кнопки
     downloadBtn.classList.remove('hidden');
     downloadAudioBtn.classList.remove('hidden');
     downloadBtn.disabled = false;
     downloadAudioBtn.disabled = false;
+  } else if (bookType === 'comic') {
+    // Для комиксов показываем кнопку скачивания комикса
+    if (downloadComicBtn) {
+      downloadComicBtn.classList.remove('hidden');
+      downloadComicBtn.disabled = false;
+    }
   } else {
     // Для обычных книг только EPUB
-    downloadAudioBtn.classList.add('hidden');
     downloadBtn.classList.remove('hidden');
     downloadBtn.disabled = false;
   }
@@ -502,6 +532,41 @@ async function startAudioDownload() {
   }
 }
 
+// Запустить скачивание комикса
+async function startComicDownload() {
+  if (!currentComicBookId) return;
+  
+  setLoading(true);
+  progressEl.classList.remove('hidden');
+  hideError();
+  
+  try {
+    updateProgress(10, 'Получение метаданных комикса...');
+    
+    const response = await chrome.runtime.sendMessage({
+      action: 'downloadComic',
+      comicBookId: currentComicBookId,
+      comicTitle: currentBookTitle
+    });
+    
+    if (response.success) {
+      updateProgress(100, 'Готово!');
+      showStatus(`Комикс готовится...`);
+    } else {
+      throw new Error(response.error || 'Ошибка скачивания');
+    }
+  } catch (error) {
+    showError(`Ошибка: ${error.message}`);
+    updateProgress(0, 'Ошибка');
+  } finally {
+    setLoading(false);
+    setTimeout(() => {
+      hideProgress();
+      hideStatus();
+    }, 3000);
+  }
+}
+
 // Инициализация
 async function init() {
   // Получить информацию о книге
@@ -511,13 +576,14 @@ async function init() {
   
   if (bookInfo) {
     currentBookId = bookInfo.bookId;
+    currentComicBookId = bookInfo.comicBookId;
     currentBookTitle = bookInfo.bookTitle;
     
     // Используем bookType из content script
-    const isAudio = bookInfo.bookType === 'audio';
+    const bookTypeValue = bookInfo.bookType;
     
-    console.log('Showing book info, isAudio:', isAudio);
-    showBookInfo(currentBookId, isAudio);
+    console.log('Showing book info, bookType:', bookTypeValue);
+    showBookInfo(currentBookId, bookTypeValue);
     hideStatus();
   } else {
     showStatus('Откройте страницу книги на books.yandex.ru');
@@ -561,6 +627,9 @@ async function clearStorage() {
 // Обработчики событий
 downloadBtn.addEventListener('click', startDownload);
 downloadAudioBtn.addEventListener('click', startAudioDownload);
+if (downloadComicBtn) {
+  downloadComicBtn.addEventListener('click', startComicDownload);
+}
 
 refreshBtn.addEventListener('click', async () => {
   hideBookInfo();
@@ -571,11 +640,83 @@ refreshBtn.addEventListener('click', async () => {
 
 clearStorageBtn.addEventListener('click', clearStorage);
 
+// ==================== Авторизация через Cookie ====================
+
+// Проверить статус авторизации и получить auth-token из cookies
+async function checkAuthStatus() {
+  try {
+    // Пробуем получить auth-token из разных доменов Яндекса
+    const authTokens = await Promise.all([
+      chrome.cookies.get({ url: 'https://oauth.yandex.ru', name: 'auth-token' }),
+      chrome.cookies.get({ url: 'https://id.yandex.ru', name: 'auth-token' }),
+      chrome.cookies.get({ url: 'https://books.yandex.ru', name: 'auth-token' }),
+      chrome.cookies.get({ url: 'https://yandex.ru', name: 'auth-token' })
+    ]);
+    
+    // Находим первый не-null токен
+    const authToken = authTokens.find(token => token && token.value);
+    
+    if (authToken && authToken.value) {
+      // Сохраняем токен в storage
+      await chrome.storage.local.set({ authToken: authToken.value });
+      updateAuthUI(true);
+      return;
+    }
+    
+    // Token не найден в cookies - пробуем из storage
+    const { authToken: storedToken } = await chrome.storage.local.get('authToken');
+    if (storedToken) {
+      updateAuthUI(true);
+    } else {
+      updateAuthUI(false);
+    }
+  } catch (error) {
+    log(`Ошибка проверки авторизации: ${error.message}`);
+    updateAuthUI(false);
+  }
+}
+
+// Обновить UI авторизации
+function updateAuthUI(isAuthenticated) {
+  if (!authStatusIconEl || !authStatusTextEl || !authorizeBtnEl) return;
+  
+  if (isAuthenticated) {
+    authStatusIconEl.textContent = '🔓';
+    authStatusTextEl.textContent = 'Авторизован (автоматически)';
+    authorizeBtnEl.classList.add('authenticated');
+    authorizeBtnEl.style.display = 'none'; // Скрываем кнопку если авторизован
+  } else {
+    authStatusIconEl.textContent = '🔒';
+    authStatusTextEl.textContent = 'Войдите в Яндекс на books.yandex.ru';
+    authorizeBtnEl.classList.remove('authenticated');
+    authorizeBtnEl.style.display = 'inline-block';
+  }
+}
+
+// Открыть страницу Яндекс Книг для авторизации
+function openYandexBooks() {
+  chrome.tabs.create({ url: 'https://books.yandex.ru', active: true });
+  // После открытия обновляем статус через 10 секунд
+  setTimeout(() => {
+    checkAuthStatus();
+  }, 10000);
+}
+
+// Обработчик кнопки авторизации
+if (authorizeBtnEl) {
+  authorizeBtnEl.addEventListener('click', openYandexBooks);
+}
+
 // Запуск при открытии popup
 init();
+checkAuthStatus();
 
 // Обновление при изменении активной вкладки
 chrome.tabs.onActivated.addListener(async () => {
   if (document.hidden) return;
   await init();
+  checkAuthStatus();
 });
+
+// Проверять auth-token каждые 2 минуты
+setInterval(checkAuthStatus, 120000);

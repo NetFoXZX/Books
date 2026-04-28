@@ -45,13 +45,13 @@ main {
 .book-info {
   background: #f8f9fa;
   border-radius: 8px;
-  padding: 20px 10px;
+  padding: 10px 8px;
   margin-bottom: 10px;
   text-align: center;
 }
 
 .book-id {
-  font-size: 24px;
+  font-size: 18px;
   color: #333;
   font-weight: 500;
 }
@@ -59,8 +59,49 @@ main {
 .book-id span {
   font-family: monospace;
   background: #e9ecef;
-  padding: 2px 6px;
+  padding: 1px 4px;
   border-radius: 4px;
+}
+
+.auth-section {
+  background: #e3f2fd;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  text-align: center;
+  border: 1px solid #90caf9;
+}
+
+.auth-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #1565c0;
+}
+
+.auth-status-icon {
+  font-size: 14px;
+}
+
+.btn-authorize {
+  background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
+  color: white;
+}
+
+.btn-authorize:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+}
+
+.btn-authorize.authenticated {
+  background: linear-gradient(135deg, #388e3c 0%, #66bb6a 100%);
+}
+
+.btn-authorize.authenticated:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(56, 142, 60, 0.4);
 }
 
 .actions {

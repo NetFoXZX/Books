@@ -27,13 +27,37 @@ function extractBookIdFromUrl() {
   return null;
 }
 
-// Определить тип страницы (аудиокнига или обычная книга)
+// Извлечь ComicBookId из URL
+function extractComicBookIdFromUrl() {
+  const url = window.location.href;
+  
+  console.log('[Content Script] Checking for comicbook URL:', url);
+  
+  // Паттерн для комиксов: /comicbooks/{id}
+  const comicPattern = /\/comicbooks\/([a-zA-Z0-9]+)/;
+  const match = url.match(comicPattern);
+  
+  if (match && match[1]) {
+    console.log('[Content Script] Extracted comicBookId:', match[1]);
+    return match[1];
+  }
+  
+  console.log('[Content Script] No comicBookId found');
+  return null;
+}
+
+// Определить тип страницы (аудиокнига, комикс или обычная книга)
 function getBookType() {
   const url = window.location.href;
   
   // Проверка на аудиокнигу по URL
   if (/\/audiobooks\//.test(url)) {
     return 'audio';
+  }
+  
+  // Проверка на комикс по URL
+  if (/\/comicbooks\//.test(url)) {
+    return 'comic';
   }
   
   return 'book';
@@ -68,14 +92,24 @@ function extractBookTitle() {
 // Обработка сообщений от popup и background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getBookInfo') {
-    const bookId = extractBookIdFromUrl();
-    const bookTitle = extractBookTitle();
     const bookType = getBookType();
+    let bookId = null;
+    let comicBookId = null;
+    const bookTitle = extractBookTitle();
     
-    console.log('[Content Script] Sending response:', { bookId, bookTitle, bookType });
+    // В зависимости от типа страницы извлекаем нужный ID
+    if (bookType === 'comic') {
+      comicBookId = extractComicBookIdFromUrl();
+      bookId = comicBookId; // Для совместимости передаем тоже в bookId
+    } else {
+      bookId = extractBookIdFromUrl();
+    }
+    
+    console.log('[Content Script] Sending response:', { bookId, comicBookId, bookTitle, bookType });
     
     sendResponse({
       bookId: bookId,
+      comicBookId: comicBookId,
       bookTitle: bookTitle,
       bookType: bookType,
       url: window.location.href

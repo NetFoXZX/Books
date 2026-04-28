@@ -6,6 +6,18 @@ importScripts('jszip.min.js');
 // API домен
 const BOOKS_DOMAIN = 'books.yandex.ru';
 
+// Варианты app-user-agent для комиксов (как в Python скрипте)
+const COMIC_USER_AGENTS = [
+  'Samsung/Galaxy_A51 Android/12 Bookmate/3.7.3',
+  'Huawei/P40_Lite Android/11 Bookmate/3.7.3',
+  'OnePlus/Nord_N10 Android/10 Bookmate/3.7.3'
+];
+
+// Получить случайный app-user-agent
+function getRandomComicUA() {
+  return COMIC_USER_AGENTS[Math.floor(Math.random() * COMIC_USER_AGENTS.length)];
+}
+
 // Переменная для хранения интервала анимации
 let animationInterval = null;
 let isAnimating = false;
@@ -230,6 +242,75 @@ async function downloadMetadata(bookId) {
   
   const response = await fetchWithCookie(url, sessionId);
   return response.json();
+}
+
+// Загрузить метаданные комикса
+async function downloadComicMetadata(comicBookId) {
+  // Получаем auth-token из chrome.storage
+  const { authToken } = await chrome.storage.local.get('authToken');
+  
+  if (!authToken) {
+    throw new Error('Auth token не найден. Пожалуйста, авторизуйтесь через кнопку "Авторизоваться" в popup.');
+  }
+  
+  const url = `https://${BOOKS_DOMAIN}/p/api/v5/comicbooks/${comicBookId}/metadata`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Cookie': `auth-token=${authToken}`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch comic metadata: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
+// Заголовки как в Python скрипте (для комиксов)
+// Используем auth-token OAuth для доступа к comicbook.bookmate.ru
+async function getComicHeaders(appUserAgent) {
+  // Получаем auth-token из chrome.storage
+  const { authToken } = await chrome.storage.local.get('authToken');
+  
+  if (!authToken) {
+    throw new Error('Auth token не найден. Пожалуйста, авторизуйтесь через кнопку "Авторизоваться" в popup.');
+  }
+  
+  return {
+    'Cookie': `auth-token=${authToken}`,
+    'app-user-agent': appUserAgent,
+    'mcc': '',
+    'mnc': '',
+    'imei': '',
+    'subscription-country': '',
+    'app-locale': '',
+    'bookmate-version': '',
+    'bookmate-websocket-version': '',
+    'device-idfa': '',
+    'onyx-preinstall': 'false',
+    'auth-token': authToken,
+    'accept-encoding': '',
+    'user-agent': ''
+  };
+}
+
+// Скачать изображение страницы комикса
+async function downloadComicPage(imageUrl, appUserAgent) {
+  const headers = await getComicHeaders(appUserAgent);
+  const response = await fetch(imageUrl, {
+    method: 'GET',
+    headers: headers
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to download comic page: ${response.status}`);
+  }
+  
+  return response.arrayBuffer();
 }
 
 // Расшифровать метаданные
@@ -658,6 +739,72 @@ function extractAudioFiles(metadata) {
 // Максимальный размер архива: 600MB
 const MAX_ARCHIVE_SIZE = 950 * 1024 * 1024;
 
+// Скачать комикс и создать ZIP архив
+// Сохраняет ZIP в IndexedDB и отправляет ID в popup
+async function downloadComicBookAndSave(comicBookId, comicTitle) {
+  const archiveBaseId = `comic_${comicBookId}_${Date.now()}`;
+  
+  log(`Начало скачивания комикса ${comicBookId}`);
+  
+  try {
+    const baseTitle = sanitizeFileName(comicTitle || `Comic_${comicBookId}`);
+    
+    // 1. Получаем метаданные комикса
+    log('Получение метаданных комикса...');
+    const metadata = await downloadComicMetadata(comicBookId);
+    
+    // 2. Проверяем наличие ZIP URL в метаданных
+    let comicZipUrl = null;
+    if (metadata.uris && metadata.uris.zip) {
+      comicZipUrl = metadata.uris.zip;
+      log(`ZIP URL найден: ${comicZipUrl}`);
+    }
+    
+    if (!comicZipUrl) {
+      throw new Error('ZIP URL не найден в метаданных комикса');
+    }
+    
+    // 3. Скачиваем готовый ZIP архив
+    log('Скачивание ZIP архива комикса...');
+    
+    // Выбираем случайный app-user-agent как в Python скрипте
+    const appUserAgent = getRandomComicUA();
+    log(`Используем app-user-agent: ${appUserAgent}`);
+    
+    const headers = await getComicHeaders(appUserAgent);
+    const response = await fetch(comicZipUrl, {
+      method: 'GET',
+      headers: headers
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Ошибка скачивания ZIP: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: 'application/zip' });
+    
+    log(`Размер ZIP архива: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
+    
+    // 4. Сохраняем в IndexedDB
+    const archiveId = `${archiveBaseId}_part1`;
+    await saveToDB(archiveId, blob);
+    
+    log(`ZIP архив комикса сохранён в IndexedDB`);
+    
+    // Устанавливаем бейдж на иконке (зеленая галочка)
+    chrome.action.setBadgeText({ text: '✓' });
+    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+    
+    log(`Комикс готов к сохранению!`);
+    log(`Нажмите на иконку расширения чтобы скачать ZIP архив`);
+    return { success: true, savedCount: 1 };
+  } catch (error) {
+    log(`Ошибка: ${error.message}`);
+    throw error;
+  }
+}
+
 // Скачать аудиокнигу и создать ZIP архив(ы) БЕЗ СЖАТИЯ
 // Сохраняет ZIP в IndexedDB и отправляет ID в popup
 async function downloadAudioAndSave(bookId, bookTitle) {
@@ -853,6 +1000,14 @@ async function downloadAudioAndSave(bookId, bookTitle) {
 
 // Обработка сообщений от popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'setAuthToken') {
+    // Установить auth-token вручную
+    chrome.storage.local.set({ authToken: request.token }).then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+  
   if (request.action === 'clearBadge') {
     // Очищаем бейдж на иконке
     chrome.action.setBadgeText({ text: '' });
@@ -918,6 +1073,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })
       .catch(error => {
         sendResponse({ isAudio: false, error: error.message });
+      });
+    
+    return true; // Асинхронный ответ
+  }
+  
+  if (request.action === 'downloadComic') {
+    // Начинаем анимацию иконки перед скачиванием
+    startIconAnimation();
+    
+    downloadComicBookAndSave(request.comicBookId, request.comicTitle)
+      .then(result => {
+        // Останавливаем анимацию при успехе
+        stopIconAnimation();
+        sendResponse({ success: true, ...result });
+      })
+      .catch(error => {
+        // Останавливаем анимацию при ошибке
+        stopIconAnimation();
+        sendResponse({ success: false, error: error.message });
       });
     
     return true; // Асинхронный ответ

@@ -21,12 +21,25 @@
         <p class="book-id">ID: <span id="bookId"></span></p>
       </div>
       
+      <div class="auth-section">
+        <div id="authStatus" class="auth-status">
+          <span id="authStatusIcon">🔒</span>
+          <span id="authStatusText">Не авторизован</span>
+        </div>
+        <button id="authorizeBtn" class="btn btn-authorize">
+          🔐 Авторизоваться
+        </button>
+      </div>
+      
       <div class="actions">
         <button id="downloadBtn" class="btn btn-primary" disabled>
           📥 Скачать EPUB
         </button>
         <button id="downloadAudioBtn" class="btn btn-primary hidden">
           🎧 Скачать Audio
+        </button>
+        <button id="downloadComicBtn" class="btn btn-primary hidden">
+          📖 Скачать Комикс
         </button>
         <button id="refreshBtn" class="btn btn-secondary">
           🔄 Обновить
@@ -59,7 +72,7 @@
     </main>
     
     <footer>
-      <p>v1.0.13</p>
+      <p>v1.0.14</p>
     </footer>
   </div>
   
