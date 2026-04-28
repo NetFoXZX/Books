@@ -26,6 +26,7 @@ const clearStorageBtn = document.getElementById('clearStorageBtn');
 
 // Элементы авторизации
 const authorizeBtnEl = document.getElementById('authorizeBtn');
+const checkAuthBtnEl = document.getElementById('checkAuthBtn');
 const authStatusEl = document.getElementById('authStatus');
 const authStatusIconEl = document.getElementById('authStatusIcon');
 const authStatusTextEl = document.getElementById('authStatusText');
@@ -645,7 +646,10 @@ clearStorageBtn.addEventListener('click', clearStorage);
 // Проверить статус авторизации и получить auth-token из cookies
 async function checkAuthStatus() {
   try {
+    log('[Авторизация] Начало проверки auth-token...');
+    
     // Пробуем получить auth-token из разных доменов Яндекса
+    log('[Авторизация] Поиск auth-token в cookies...');
     const authTokens = await Promise.all([
       chrome.cookies.get({ url: 'https://oauth.yandex.ru', name: 'auth-token' }),
       chrome.cookies.get({ url: 'https://id.yandex.ru', name: 'auth-token' }),
@@ -657,21 +661,26 @@ async function checkAuthStatus() {
     const authToken = authTokens.find(token => token && token.value);
     
     if (authToken && authToken.value) {
+      log(`[Авторизация] auth-token найден в cookies (${authToken.url})`);
       // Сохраняем токен в storage
       await chrome.storage.local.set({ authToken: authToken.value });
+      log('[Авторизация] Токен сохранён в storage');
       updateAuthUI(true);
       return;
     }
     
     // Token не найден в cookies - пробуем из storage
+    log('[Авторизация] auth-token не найден в cookies, проверка storage...');
     const { authToken: storedToken } = await chrome.storage.local.get('authToken');
     if (storedToken) {
+      log('[Авторизация] auth-token найден в storage');
       updateAuthUI(true);
     } else {
+      log('[Авторизация] auth-token не найден. Требуется авторизация.');
       updateAuthUI(false);
     }
   } catch (error) {
-    log(`Ошибка проверки авторизации: ${error.message}`);
+    log(`[Авторизация] Ошибка проверки авторизации: ${error.message}`);
     updateAuthUI(false);
   }
 }
@@ -682,29 +691,116 @@ function updateAuthUI(isAuthenticated) {
   
   if (isAuthenticated) {
     authStatusIconEl.textContent = '🔓';
-    authStatusTextEl.textContent = 'Авторизован (автоматически)';
+    authStatusTextEl.textContent = 'Авторизован';
     authorizeBtnEl.classList.add('authenticated');
     authorizeBtnEl.style.display = 'none'; // Скрываем кнопку если авторизован
+    if (checkAuthBtnEl) checkAuthBtnEl.style.display = 'none';
   } else {
     authStatusIconEl.textContent = '🔒';
-    authStatusTextEl.textContent = 'Войдите в Яндекс на books.yandex.ru';
+    authStatusTextEl.textContent = 'Не авторизован';
     authorizeBtnEl.classList.remove('authenticated');
     authorizeBtnEl.style.display = 'inline-block';
+    if (checkAuthBtnEl) checkAuthBtnEl.style.display = 'inline-block';
   }
 }
 
-// Открыть страницу Яндекс Книг для авторизации
-function openYandexBooks() {
-  chrome.tabs.create({ url: 'https://books.yandex.ru', active: true });
-  // После открытия обновляем статус через 10 секунд
-  setTimeout(() => {
-    checkAuthStatus();
-  }, 10000);
+// Проверить авторизацию с подробным выводом
+async function forceCheckAuth() {
+  log('[Проверка] Принудительная проверка авторизации...');
+  
+  try {
+    // Показываем статус
+    authStatusTextEl.textContent = 'Проверка...';
+    
+    // Проверяем cookies
+    log('[Проверка] Проверка cookies...');
+    const cookiesToCheck = [
+      'https://oauth.yandex.ru',
+      'https://id.yandex.ru',
+      'https://books.yandex.ru',
+      'https://yandex.ru'
+    ];
+    
+    let foundToken = null;
+    let foundInStorage = false;
+    
+    for (const url of cookiesToCheck) {
+      try {
+        const cookie = await chrome.cookies.get({ url, name: 'auth-token' });
+        if (cookie && cookie.value) {
+          foundToken = cookie.value;
+          log(`[Проверка] ✓ auth-token найден в ${url}`);
+          log(`[Проверка] Token (первые 20 символов): ${cookie.value.substring(0, 20)}...`);
+          break;
+        } else {
+          log(`[Проверка] ✗ auth-token не найден в ${url}`);
+        }
+      } catch (e) {
+        log(`[Проверка] Ошибка проверки ${url}: ${e.message}`);
+      }
+    }
+    
+    // Проверяем storage
+    const { authToken: storedToken } = await chrome.storage.local.get('authToken');
+    if (storedToken) {
+      foundInStorage = true;
+      log(`[Проверка] ✓ auth-token найден в storage (длина: ${storedToken.length})`);
+    } else {
+      log(`[Проверка] ✗ auth-token не найден в storage`);
+    }
+    
+    // Итоговый результат
+    if (foundToken || foundInStorage) {
+      const token = foundToken || storedToken;
+      await chrome.storage.local.set({ authToken: token });
+      log('[Проверка] ✓ Авторизация успешна!');
+      updateAuthUI(true);
+      showStatus('✓ Авторизован! Можно скачивать комиксы.');
+    } else {
+      log('[Проверка] ✗ Авторизация не найдена. Нажмите "Войти в Яндекс Книги".');
+      updateAuthUI(false);
+      showStatus('Не авторизован. Нажмите "Войти в Яндекс Книги" и войдите в аккаунт.');
+    }
+  } catch (error) {
+    log(`[Проверка] Ошибка: ${error.message}`);
+    authStatusTextEl.textContent = 'Ошибка проверки';
+    showError(`Ошибка проверки: ${error.message}`);
+  }
+}
+
+// Открыть OAuth страницу для авторизации
+async function openYandexBooks() {
+  // URL без redirect_uri - Яндекс использует дефолтный веб-redirect
+  const oauthUrl = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=4483e97bab6e486a9822973109a14d05';
+  
+  log('[OAuth] Отправка запроса в background...');
+  
+  // Показываем статус
+  authStatusTextEl.textContent = 'Авторизация...';
+  
+  // Отправляем сообщение в background.js
+  chrome.runtime.sendMessage({
+    action: 'startOAuth',
+    oauthUrl: oauthUrl
+  }, (response) => {
+    if (response && response.success) {
+      log('[OAuth] Запрос отправлен в background');
+    } else {
+      log('[OAuth] Ошибка отправки запроса');
+      showError('Ошибка запуска авторизации');
+      authStatusTextEl.textContent = 'Не авторизован';
+    }
+  });
 }
 
 // Обработчик кнопки авторизации
 if (authorizeBtnEl) {
   authorizeBtnEl.addEventListener('click', openYandexBooks);
+}
+
+// Обработчик кнопки проверки авторизации
+if (checkAuthBtnEl) {
+  checkAuthBtnEl.addEventListener('click', forceCheckAuth);
 }
 
 // Запуск при открытии popup

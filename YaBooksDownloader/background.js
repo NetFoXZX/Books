@@ -3,6 +3,129 @@
 // Подключаем JSZip
 importScripts('jszip.min.js');
 
+// ==================== OAuth Authorization ====================
+
+// Отслеживаем OAuth вкладку
+let oauthTabId = null;
+
+// Обработчик навигации для OAuth
+const handleOAuthNavigation = async (details) => {
+  if (details.tabId !== oauthTabId) return;
+  
+  log(`[OAuth] Навигация: ${details.url}`);
+  
+  // Проверяем наличие access_token в hash fragment
+  if (details.url.includes('#')) {
+    const hash = details.url.split('#')[1];
+    const hashParams = new URLSearchParams(hash);
+    const accessToken = hashParams.get('access_token');
+    const error = hashParams.get('error');
+    
+    if (error) {
+      const errorDesc = hashParams.get('error_description') || 'Неизвестная ошибка';
+      log(`[OAuth] Ошибка: ${error} - ${errorDesc}`);
+      
+      // Закрываем OAuth вкладку
+      if (oauthTabId) {
+        try {
+          await chrome.tabs.remove(oauthTabId);
+        } catch (e) {}
+        oauthTabId = null;
+      }
+      
+      chrome.webNavigation.onCommitted.removeListener(handleOAuthNavigation);
+      return;
+    }
+    
+    if (accessToken) {
+      log(`[OAuth] ✓ access_token получен! (длина: ${accessToken.length})`);
+      
+      // Сохраняем token в storage
+      await chrome.storage.local.set({ authToken: accessToken });
+      log('[OAuth] Token сохранён в storage');
+      
+      // Закрываем OAuth вкладку
+      if (oauthTabId) {
+        try {
+          await chrome.tabs.remove(oauthTabId);
+        } catch (e) {}
+        oauthTabId = null;
+      }
+      
+      chrome.webNavigation.onCommitted.removeListener(handleOAuthNavigation);
+      
+      // Устанавливаем бейдж
+      chrome.action.setBadgeText({ text: '✓' });
+      chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+      
+      setTimeout(() => {
+        chrome.action.setBadgeText({ text: '' });
+      }, 3000);
+    }
+  }
+};
+
+// Обработчик сообщений для OAuth
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'startOAuth') {
+    startOAuth(message.oauthUrl);
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
+// Запустить OAuth flow
+async function startOAuth(oauthUrl) {
+  log('[OAuth] Запуск OAuth flow...');
+  log(`[OAuth] URL: ${oauthUrl}`);
+  
+  // Открываем OAuth вкладку
+  const tab = await chrome.tabs.create({ url: oauthUrl, active: true });
+  oauthTabId = tab.id;
+  log(`[OAuth] Вкладка создана: ${oauthTabId}`);
+  
+  // Устанавливаем слушатель навигации (onCommitted срабатывает на все навигации включая первоначальную загрузку)
+  chrome.webNavigation.onCommitted.addListener(handleOAuthNavigation);
+  
+  // Polling как резервный механизм
+  const pollInterval = setInterval(async () => {
+    try {
+      if (!oauthTabId) {
+        clearInterval(pollInterval);
+        return;
+      }
+      
+      const currentTab = await chrome.tabs.get(oauthTabId);
+      if (currentTab.url && currentTab.url.includes('#')) {
+        const hash = currentTab.url.split('#')[1];
+        const hashParams = new URLSearchParams(hash);
+        const accessToken = hashParams.get('access_token');
+        const error = hashParams.get('error');
+        
+        if (error || accessToken) {
+          clearInterval(pollInterval);
+          // Обработчик навигации уже обработает это
+        }
+      }
+    } catch (e) {
+      // Вкладка могла быть закрыта
+      clearInterval(pollInterval);
+    }
+  }, 500);
+  
+  // Тайм-аут через 3 минуты
+  setTimeout(async () => {
+    if (oauthTabId) {
+      try {
+        await chrome.tabs.remove(oauthTabId);
+      } catch (e) {}
+      oauthTabId = null;
+    }
+    clearInterval(pollInterval);
+    log('[OAuth] Тайм-аут авторизации');
+  }, 180000);
+}
+
 // API домен
 const BOOKS_DOMAIN = 'books.yandex.ru';
 

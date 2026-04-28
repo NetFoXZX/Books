@@ -9,6 +9,7 @@
     "downloads",
     "scripting",
     "cookies",
+    "webNavigation",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
   ],
