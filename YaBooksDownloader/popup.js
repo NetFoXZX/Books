@@ -1,4 +1,5 @@
 // Popup.js - Логика интерфейса расширения
+// Version: 1.0.18
 
 let currentBookId = null;
 let currentBookTitle = null;

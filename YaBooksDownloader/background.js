@@ -725,7 +725,7 @@ async function createEpubBase64(zip, fileName) {
   return { base64, fileName };
 }
 
-// Сохранить файл через chrome.downloads API
+// Сохранить файл через chrome.downloads API (из base64)
 async function downloadFileFromBase64(base64, fileName) {
   const dataUrl = `data:application/epub+zip;base64,${base64}`;
   
@@ -746,6 +746,44 @@ async function downloadFileFromBase64(base64, fileName) {
         }
       }
     );
+  });
+}
+
+// Сохранить файл через chrome.downloads API (из Blob)
+// Используем FileReader для работы в Service Worker контексте
+async function downloadFileFromBlob(blob, fileName) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onloadend = () => {
+      // reader.result - это data URL в формате "data:application/zip;base64,..."
+      // Заменяем MIME тип на application/x-cbz для правильного расширения .cbz
+      let dataUrl = reader.result.replace(/^data:application\/zip;base64,/, 'data:application/x-cbz;base64,');
+      
+      chrome.downloads.download(
+        {
+          url: dataUrl,
+          filename: fileName,
+          saveAs: true // Показывать диалог сохранения файла
+        },
+        (downloadId) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (downloadId) {
+            resolve({ downloadId });
+          } else {
+            reject(new Error('Не удалось начать загрузку'));
+          }
+        }
+      );
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Ошибка чтения Blob'));
+    };
+    
+    // Читаем Blob как Data URL (base64)
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -862,11 +900,8 @@ function extractAudioFiles(metadata) {
 // Максимальный размер архива: 600MB
 const MAX_ARCHIVE_SIZE = 950 * 1024 * 1024;
 
-// Скачать комикс и создать ZIP архив
-// Сохраняет ZIP в IndexedDB и отправляет ID в popup
+// Скачать комикс и сохранить как CBZ напрямую (без IndexedDB)
 async function downloadComicBookAndSave(comicBookId, comicTitle) {
-  const archiveBaseId = `comic_${comicBookId}_${Date.now()}`;
-  
   log(`Начало скачивания комикса ${comicBookId}`);
   
   try {
@@ -875,13 +910,13 @@ async function downloadComicBookAndSave(comicBookId, comicTitle) {
     const metadata = await downloadComicMetadata(comicBookId);
     
     // Приоритет названия:
-    // 1. Название из метаданных API комикса (metadata.book?.title или metadata.title)
-    // 2. Название со страницы (comicTitle из content.js)
+    // 1. Название со страницы (comicTitle из content.js - через [data-test-id="CONTENT_TITLE_MAIN"])
+    // 2. Название из метаданных API комикса (metadata.book?.title или metadata.title)
     // 3. Фолбэк Comic_${comicBookId}
     const comicTitleFromApi = metadata.book?.title || metadata.title || (metadata.bookmate && metadata.bookmate.title);
-    const baseTitle = sanitizeFileName(comicTitleFromApi || comicTitle || `Comic_${comicBookId}`);
+    const baseTitle = sanitizeFileName(comicTitle || comicTitleFromApi || `Comic_${comicBookId}`);
     
-    log(`Используем название: ${baseTitle} (из ${comicTitleFromApi ? 'API' : (comicTitle ? 'страницы' : 'фолбэк')})`);
+    log(`Используем название: ${baseTitle} (из ${comicTitle ? 'страницы' : (comicTitleFromApi ? 'API' : 'фолбэк')})`);
     
     // 2. Проверяем наличие ZIP URL в метаданных
     let comicZipUrl = null;
@@ -916,20 +951,14 @@ async function downloadComicBookAndSave(comicBookId, comicTitle) {
     
     log(`Размер ZIP архива: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
     
-    // 4. Сохраняем в IndexedDB с названием файла
-    const archiveId = `${archiveBaseId}_part1`;
-    // Сохраняем объект с blob и названием для правильного имени файла при скачивании
-    await saveToDB(archiveId, { blob, fileName: `${baseTitle}.zip` });
+    // 4. Сохраняем напрямую как CBZ через chrome.downloads API
+    const fileName = `${baseTitle}.cbz`;
+    log(`Сохранение комикса как CBZ: ${fileName}`);
     
-    log(`ZIP архив комикса сохранён в IndexedDB`);
+    await downloadFileFromBlob(blob, fileName);
     
-    // Устанавливаем бейдж на иконке (зеленая галочка)
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    
-    log(`Комикс готов к сохранению!`);
-    log(`Нажмите на иконку расширения чтобы скачать ZIP архив`);
-    return { success: true, savedCount: 1 };
+    log(`Комикс успешно сохранён как CBZ!`);
+    return { success: true };
   } catch (error) {
     log(`Ошибка: ${error.message}`);
     throw error;
