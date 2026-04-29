@@ -65,24 +65,80 @@ function getBookType() {
 
 // Извлечь название книги из заголовка страницы
 function extractBookTitle() {
-  // Получаем заголовок из мета-тега og:title (наиболее надёжный источник)
-  const ogTitle = document.querySelector('meta[property="og:title"]');
-  if (ogTitle && ogTitle.getAttribute('content')) {
-    let title = ogTitle.getAttribute('content');
-    // Удаление " - Яндекс.Книги" и подобного
+  // Приоритет 1: Специфичный селектор для страницы описания книги Яндекс.Книг
+  // [data-test-id="CONTENT_TITLE_MAIN"] содержит название без HTML тегов
+  const contentTitleMain = document.querySelector('[data-test-id="CONTENT_TITLE_MAIN"]');
+  if (contentTitleMain) {
+    // Используем textContent для получения чистого текста без HTML
+    let title = contentTitleMain.textContent.trim();
+    // Удаление служебных суффиксов
     title = title.replace(/\s*[-–—]\s*Яндекс\.Книги.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*слушать онлайн.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*читать онлайн.*/i, '').trim();
     if (title) {
       return title;
     }
   }
   
-  // Фолбэк: заголовок из title тега
+  // Приоритет 2: Получаем заголовок из мета-тега og:title
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle && ogTitle.getAttribute('content')) {
+    let title = ogTitle.getAttribute('content');
+    // Удаление " - Яндекс.Книги" и подобного
+    title = title.replace(/\s*[-–—]\s*Яндекс\.Книги.*/i, '').trim();
+    // Удаление " - слушать онлайн" и подобных суффиксов
+    title = title.replace(/\s*[-–—]\s*слушать онлайн.*/i, '').trim();
+    // Удаление " читать онлайн" и подобных суффиксов
+    title = title.replace(/\s*[-–—]\s*читать онлайн.*/i, '').trim();
+    if (title) {
+      return title;
+    }
+  }
+  
+  // Приоритет 3: Заголовок из title тега
   const titleTag = document.querySelector('title');
   if (titleTag && titleTag.textContent) {
     let title = titleTag.textContent;
     title = title.replace(/\s*[-–—]\s*Яндекс\.Книги.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*слушать онлайн.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*читать онлайн.*/i, '').trim();
     if (title) {
       return title;
+    }
+  }
+  
+  // Приоритет 4: Заголовок h1 на странице
+  const h1Title = document.querySelector('h1');
+  if (h1Title && h1Title.textContent) {
+    let title = h1Title.textContent.trim();
+    title = title.replace(/\s*[-–—]\s*Яндекс\.Книги.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*слушать онлайн.*/i, '').trim();
+    title = title.replace(/\s*[-–—]\s*читать онлайн.*/i, '').trim();
+    if (title) {
+      return title;
+    }
+  }
+  
+  // Приоритет 5: Специфичные селекторы для Яндекс.Книг
+  // Селекторы для страниц комиксов
+  const comicTitleSelectors = [
+    '.book-header__title',
+    '.reader-header__title',
+    '[data-testid="book-title"]',
+    '.book-title',
+    '.title-header'
+  ];
+  
+  for (const selector of comicTitleSelectors) {
+    const element = document.querySelector(selector);
+    if (element && element.textContent) {
+      let title = element.textContent.trim();
+      title = title.replace(/\s*[-–—]\s*Яндекс\.Книги.*/i, '').trim();
+      title = title.replace(/\s*[-–—]\s*слушать онлайн.*/i, '').trim();
+      title = title.replace(/\s*[-–—]\s*читать онлайн.*/i, '').trim();
+      if (title) {
+        return title;
+      }
     }
   }
   

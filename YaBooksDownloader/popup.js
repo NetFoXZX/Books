@@ -130,7 +130,13 @@ function showZipNotification(records) {
   if (!zipNotificationEl || !zipInfoEl) return;
   
   const count = records.length;
-  const totalSize = records.reduce((sum, r) => sum + (r.data?.size || 0), 0);
+  // Вычисляем размер с учётом нового формата { blob, fileName }
+  const totalSize = records.reduce((sum, r) => {
+    if (r.data?.blob) {
+      return sum + r.data.blob.size;
+    }
+    return sum + (r.data?.size || 0);
+  }, 0);
   const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
   
   // Проверяем, это части одного архива или разные архивы
@@ -225,7 +231,23 @@ async function downloadSingleZip(record) {
       throw new Error('Данные архива не найдены');
     }
     
-    const blob = record.data;
+    // record.data может быть объектом { blob, fileName } (новый формат) или Blob (старый формат)
+    let blob;
+    let fileNameFromRecord = null;
+    
+    if (record.data.blob) {
+      // Новый формат: { blob, fileName }
+      blob = record.data.blob;
+      fileNameFromRecord = record.data.fileName;
+      log(`Используем новый формат данных: blob=${blob?.size} байт, fileName=${fileNameFromRecord}`);
+    } else if (record.data instanceof Blob) {
+      // Старый формат: прямой Blob
+      blob = record.data;
+      log(`Используем старый формат данных (прямой Blob): ${blob?.size} байт`);
+    } else {
+      throw new Error(`Некорректный тип данных: ${typeof record.data}, expected Blob or { blob, fileName }`);
+    }
+    
     log(`Type: ${typeof blob}, Constructor: ${blob?.constructor?.name}`);
     log(`Размер Blob: ${blob?.size} байт`);
     
@@ -233,29 +255,33 @@ async function downloadSingleZip(record) {
       throw new Error('Blob пустой или некорректный!');
     }
     
-    // Проверяем что это действительно Blob
-    if (!(blob instanceof Blob)) {
-      throw new Error(`Некорректный тип данных: ${typeof blob}, expected Blob`);
-    }
-    
     // Создаём Blob URL
     log('Создание Blob URL...');
     const blobUrl = URL.createObjectURL(blob);
     
-    // Генерируем имя файла из ID
-    // Если это часть архива, используем имя части, иначе генерируем новое
+    // Получаем имя файла из сохранённых данных или генерируем из ID
     let fileName;
-    if (record.id.includes('_part')) {
-      // Извлекаем base ID и номер части
-      const match = record.id.match(/^(.+)_part(\d+)$/);
-      if (match) {
-        const partNum = match[2];
-        fileName = `audiobook_part${partNum}.zip`;
+    if (fileNameFromRecord) {
+      // Используем имя файла из объекта { blob, fileName }
+      fileName = fileNameFromRecord;
+      log(`Используем имя файла из данных: ${fileName}`);
+    } else if (record.fileName) {
+      // Фолбэк: сохранённое имя файла в записи (старый формат)
+      fileName = record.fileName;
+      log(`Используем сохранённое имя файла из записи: ${fileName}`);
+    } else {
+      // Фолбэк: генерируем имя из ID
+      if (record.id.includes('_part')) {
+        const match = record.id.match(/^(.+)_part(\d+)$/);
+        if (match) {
+          const partNum = match[2];
+          fileName = `audiobook_part${partNum}.zip`;
+        } else {
+          fileName = `audiobook_${Date.now()}.zip`;
+        }
       } else {
         fileName = `audiobook_${Date.now()}.zip`;
       }
-    } else {
-      fileName = `audiobook_${Date.now()}.zip`;
     }
     
     log('Сохранение ZIP архива...');

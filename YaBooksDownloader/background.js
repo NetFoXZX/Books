@@ -870,11 +870,18 @@ async function downloadComicBookAndSave(comicBookId, comicTitle) {
   log(`Начало скачивания комикса ${comicBookId}`);
   
   try {
-    const baseTitle = sanitizeFileName(comicTitle || `Comic_${comicBookId}`);
-    
     // 1. Получаем метаданные комикса
     log('Получение метаданных комикса...');
     const metadata = await downloadComicMetadata(comicBookId);
+    
+    // Приоритет названия:
+    // 1. Название из метаданных API комикса (metadata.book?.title или metadata.title)
+    // 2. Название со страницы (comicTitle из content.js)
+    // 3. Фолбэк Comic_${comicBookId}
+    const comicTitleFromApi = metadata.book?.title || metadata.title || (metadata.bookmate && metadata.bookmate.title);
+    const baseTitle = sanitizeFileName(comicTitleFromApi || comicTitle || `Comic_${comicBookId}`);
+    
+    log(`Используем название: ${baseTitle} (из ${comicTitleFromApi ? 'API' : (comicTitle ? 'страницы' : 'фолбэк')})`);
     
     // 2. Проверяем наличие ZIP URL в метаданных
     let comicZipUrl = null;
@@ -909,9 +916,10 @@ async function downloadComicBookAndSave(comicBookId, comicTitle) {
     
     log(`Размер ZIP архива: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
     
-    // 4. Сохраняем в IndexedDB
+    // 4. Сохраняем в IndexedDB с названием файла
     const archiveId = `${archiveBaseId}_part1`;
-    await saveToDB(archiveId, blob);
+    // Сохраняем объект с blob и названием для правильного имени файла при скачивании
+    await saveToDB(archiveId, { blob, fileName: `${baseTitle}.zip` });
     
     log(`ZIP архив комикса сохранён в IndexedDB`);
     
@@ -936,8 +944,6 @@ async function downloadAudioAndSave(bookId, bookTitle) {
   log(`Начало скачивания аудиокниги ${bookId}`);
   
   try {
-    const baseTitle = sanitizeFileName(bookTitle || `Audiobook_${bookId}`);
-    
     // 1. Получаем плейлист аудиокниги
     log('Получение плейлиста аудиокниги...');
     const sessionId = await getSessionId();
@@ -962,6 +968,15 @@ async function downloadAudioAndSave(bookId, bookTitle) {
     }
     
     log(`Найдено треков: ${playlist.tracks.length}`);
+    
+    // Приоритет названия:
+    // 1. Название со страницы (bookTitle из content.js)
+    // 2. Название из плейлиста (playlist.title или playlist.bookTitle)
+    // 3. Фолбэк Audiobook_${bookId}
+    const playlistTitle = playlist.title || playlist.bookTitle || playlist.name;
+    const baseTitle = sanitizeFileName(bookTitle || playlistTitle || `Audiobook_${bookId}`);
+    
+    log(`Используем название: ${baseTitle} (из ${bookTitle ? 'страницы' : (playlistTitle ? 'плейлиста' : 'фолбэк')})`);
     
     // Фильтруем доступные треки
     const availableTracks = playlist.tracks.filter(track => track.availability === 'available' && track.offline?.max_bit_rate?.url);
@@ -1045,8 +1060,8 @@ async function downloadAudioAndSave(bookId, bookTitle) {
           
           log(`Размер части ${partNumber}: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
           
-          // Сохраняем в IndexedDB
-          await saveToDB(archiveId, blob);
+          // Сохраняем в IndexedDB с названием файла
+          await saveToDB(archiveId, { blob, fileName: `${baseTitle}_part${partNumber}.zip` });
           
           // Очищаем ZIP и начинаем новый архив
           zip = new JSZip();
@@ -1095,8 +1110,8 @@ async function downloadAudioAndSave(bookId, bookTitle) {
       
       log(`Размер части ${partNumber}: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
       
-      // Сохраняем в IndexedDB
-      await saveToDB(archiveId, blob);
+      // Сохраняем в IndexedDB с названием файла
+      await saveToDB(archiveId, { blob, fileName: `${baseTitle}_part${partNumber}.zip` });
       
       totalSavedCount += savedCount;
       log(`Создана часть архива ${partNumber}, файлов: ${savedCount}`);
@@ -1258,9 +1273,14 @@ async function downloadBook(bookId, bookTitle) {
     log('Расшифровка метаданных...');
     const metadata = await decryptMetadata(encryptedMetadata, secret);
     
-    // 4. Извлечь название из метаданных OPF (приоритетный источник)
+    // 4. Приоритет названия:
+    // 1. Название со страницы (bookTitle из content.js - через [data-test-id="CONTENT_TITLE_MAIN"])
+    // 2. Название из метаданных OPF
+    // 3. Фолбэк Book_${bookId}
     const opfTitle = extractTitlesFromOpf(metadata.opf);
-    const title = opfTitle || bookTitle || `Book_${bookId}`;
+    const title = bookTitle || opfTitle || `Book_${bookId}`;
+    
+    log(`Используем название: ${title} (из ${bookTitle ? 'страницы' : (opfTitle ? 'OPF' : 'фолбэк')})`);
     
     // 5. Создать EPUB
     log('Создание EPUB...');
@@ -1291,9 +1311,14 @@ async function downloadBookAndSave(bookId, bookTitle) {
     log('Расшифровка метаданных...');
     const metadata = await decryptMetadata(encryptedMetadata, secret);
     
-    // 4. Извлечь название из метаданных OPF (приоритетный источник)
+    // 4. Приоритет названия:
+    // 1. Название со страницы (bookTitle из content.js - через [data-test-id="CONTENT_TITLE_MAIN"])
+    // 2. Название из метаданных OPF
+    // 3. Фолбэк Book_${bookId}
     const opfTitle = extractTitlesFromOpf(metadata.opf);
-    const title = opfTitle || bookTitle || `Book_${bookId}`;
+    const title = bookTitle || opfTitle || `Book_${bookId}`;
+    
+    log(`Используем название: ${title} (из ${bookTitle ? 'страницы' : (opfTitle ? 'OPF' : 'фолбэк')})`);
     
     // 5. Создать EPUB
     log('Создание EPUB...');
