@@ -19,7 +19,7 @@ body {
 header {
   background: linear-gradient(135deg, #fc3f1c 0%, #ff6b4a 100%);
   color: white;
-  padding: 20px;
+  padding: 12px;
   text-align: center;
 }
 
@@ -78,7 +78,7 @@ main {
   justify-content: center;
   gap: 6px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: #1565c0;
 }
 
@@ -160,7 +160,7 @@ main {
   background: #e8f5e9;
   border: 1px solid #81c784;
   border-radius: 8px;
-  padding: 15px;
+  padding: 10px;
   margin-top: 15px;
 }
 
@@ -215,7 +215,7 @@ main {
 
 footer {
   text-align: center;
-  padding: 15px;
+  padding: 6px;
   border-top: 1px solid #eee;
   color: #999;
   font-size: 12px;
