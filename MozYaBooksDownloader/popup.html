@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yandex Books Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📚 Yandex Books Downloader</h1>
+    </header>
+    
+    <main>
+      <div id="status" class="status">
+        <p>Откройте книгу для скачивания</p>
+      </div>
+      
+      <div id="bookInfo" class="book-info hidden">
+        <p class="book-id">ID: <span id="bookId"></span></p>
+      </div>
+      
+      <div class="auth-section">
+        <div id="authStatus" class="auth-status">
+          <span id="authStatusIcon">🔒</span>
+          <span id="authStatusText">Не авторизован</span>
+        </div>
+        <button id="authorizeBtn" class="btn btn-authorize">
+          🔄 Открыть books.yandex.ru
+        </button>
+        <button id="checkAuthBtn" class="btn btn-secondary" style="margin-top: 5px;">
+          🔄 Проверить авторизацию
+        </button>
+      </div>
+      
+      <div class="actions">
+        <button id="downloadBtn" class="btn btn-primary" disabled>
+          📥 Скачать EPUB
+        </button>
+        <button id="downloadAudioBtn" class="btn btn-primary hidden">
+          🎧 Скачать Audio
+        </button>
+        <button id="downloadComicBtn" class="btn btn-primary hidden">
+          📖 Скачать Комикс
+        </button>
+        <button id="refreshBtn" class="btn btn-secondary">
+          🔄 Обновить
+        </button>
+      </div>
+      
+      <div id="progress" class="progress hidden">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText">Подготовка...</p>
+      </div>
+      
+      <div id="error" class="error hidden"></div>
+      
+      <!-- Уведомление о готовом ZIP архиве -->
+      <div id="zipNotification" class="zip-notification hidden">
+        <div class="zip-info" id="zipInfo">
+          <p><strong>Готов ZIP архив!</strong></p>
+        </div>
+        <button id="zipDownloadBtn" class="btn btn-success">
+          💾 Скачать ZIP
+        </button>
+      </div>
+      
+      <!-- Кнопка очистки хранилища -->
+      <button id="clearStorageBtn" class="btn btn-secondary" style="margin-top: 10px;">
+        🗑️ Очистить хранилище
+      </button>
+    </main>
+    
+    <footer>
+      <p>v1.0.1</p>
+    </footer>
+  </div>
+  
+  <script src="localforage.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+  "manifest_version": 2,
+  "name": "Yandex Books Downloader by NeTFoXZX",
+  "version": "1.0.1",
+  "description": "Скачивайте книги, аудиокниги и комиксы с Yandex Books",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mozya-books-downloader@example.com",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads",
+    "cookies",
+    "webNavigation",
+    "declarativeNetRequest",
+    "https://books.yandex.ru/*",
+    "https://yandex.ru/books/*",
+    "https://audio.bookmate.ru/*",
+    "https://comicbook.bookmate.ru/*",
+    "https://*.yandex.ru/*",
+    "https://oauth.yandex.ru/*",
+    "https://id.yandex.ru/*",
+    "https://*.yandex.com/*",
+    "https://yandex.com/*",
+    "*://*.yandex.ru/*",
+    "*://*.yandex.com/*",
+    "https://yandex.ru/*",
+    "https://yandex.com/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "scripts": ["localforage.min.js", "jszip.min.js", "background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://books.yandex.ru/*",
+        "https://yandex.ru/books/*",
+        "https://comicbook.bookmate.ru/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
