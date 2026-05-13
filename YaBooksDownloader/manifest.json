@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Yandex Books Downloader by NeTFoXZX",
-"version": "1.0.18",
+"version": "1.0.22",
   "description": "Скачивайте книги, аудиокниги и комиксы с Yandex Books",
   "permissions": [
     "activeTab",

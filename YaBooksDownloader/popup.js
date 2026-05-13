@@ -18,6 +18,8 @@ const progressEl = document.getElementById('progress');
 const progressFillEl = document.getElementById('progressFill');
 const progressTextEl = document.getElementById('progressText');
 const errorEl = document.getElementById('error');
+const validateFormatCheckbox = document.getElementById('validateFormatCheckbox');
+const validateFormatLabel = document.getElementById('validateFormatLabel');
 
 // Элемент для уведомления о готовом ZIP
 const zipNotificationEl = document.getElementById('zipNotification');
@@ -461,12 +463,13 @@ function showBookInfo(bookId, bookType = 'book') {
   downloadAudioBtn.classList.add('hidden');
   if (downloadComicBtn) downloadComicBtn.classList.add('hidden');
   
+  // Скрываем/показываем чекбокс в зависимости от типа книги
+  toggleValidateFormatCheckbox(bookType);
+  
   // Показываем кнопки в зависимости от типа
   if (bookType === 'audio') {
-    // Для аудиокниг показываем обе кнопки
-    downloadBtn.classList.remove('hidden');
+    // Для аудиокниг показываем только кнопку Audio (EPUB не показываем)
     downloadAudioBtn.classList.remove('hidden');
-    downloadBtn.disabled = false;
     downloadAudioBtn.disabled = false;
   } else if (bookType === 'comic') {
     // Для комиксов показываем кнопку скачивания комикса
@@ -494,6 +497,9 @@ function hideBookInfo() {
 async function startDownload() {
   if (!currentBookId) return;
   
+  // Получаем статус чекбокса "Проверить формат"
+  const validateFormat = validateFormatCheckbox && validateFormatCheckbox.checked;
+  
   setLoading(true);
   progressEl.classList.remove('hidden');
   hideError();
@@ -504,7 +510,8 @@ async function startDownload() {
     const response = await chrome.runtime.sendMessage({
       action: 'downloadBook',
       bookId: currentBookId,
-      bookTitle: currentBookTitle
+      bookTitle: currentBookTitle,
+      validateFormat: validateFormat
     });
     
     if (response.success) {
@@ -834,6 +841,41 @@ if (checkAuthBtnEl) {
 init();
 checkAuthStatus();
 
+// ==================== Запоминание состояния чекбокса "Проверить формат" ====================
+
+// Получить и восстановить состояние чекбокса
+async function loadValidateFormatState() {
+  try {
+    const { validateFormat } = await chrome.storage.local.get('validateFormat');
+    if (validateFormatCheckbox) {
+      // По умолчанию true, если не сохранено иное
+      validateFormatCheckbox.checked = validateFormat !== false;
+    }
+  } catch (error) {
+    log(`Ошибка загрузки состояния чекбокса: ${error.message}`);
+  }
+}
+
+// Сохранить состояние чекбокса
+async function saveValidateFormatState(checked) {
+  try {
+    await chrome.storage.local.set({ validateFormat: checked });
+  } catch (error) {
+    log(`Ошибка сохранения состояния чекбокса: ${error.message}`);
+  }
+}
+
+// Показать/скрыть чекбокс в зависимости от типа книги
+function toggleValidateFormatCheckbox(bookType) {
+  if (validateFormatLabel) {
+    if (bookType === 'book') {
+      validateFormatLabel.classList.remove('hidden');
+    } else {
+      validateFormatLabel.classList.add('hidden');
+    }
+  }
+}
+
 // Обновление при изменении активной вкладки
 chrome.tabs.onActivated.addListener(async () => {
   if (document.hidden) return;
@@ -843,3 +885,13 @@ chrome.tabs.onActivated.addListener(async () => {
 
 // Проверять auth-token каждые 2 минуты
 setInterval(checkAuthStatus, 120000);
+
+// Обработчик изменения чекбокса для сохранения состояния
+if (validateFormatCheckbox) {
+  validateFormatCheckbox.addEventListener('change', () => {
+    saveValidateFormatState(validateFormatCheckbox.checked);
+  });
+  
+  // Загрузить сохранённое состояние при инициализации
+  loadValidateFormatState();
+}

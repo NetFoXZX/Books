@@ -504,6 +504,83 @@ function base64ToUint8Array(base64) {
   return bytes;
 }
 
+// Валидация и исправление HTML файлов для EPUB
+function validateAndFixHtml(htmlContent) {
+  let content = htmlContent;
+  
+  // 1. Удалить DOCTYPE declaration
+  content = content.replace(/<!DOCTYPE[^>]*>/gi, '');
+  
+  // 2. Удалить &nbsp; сущности (неразрывные пробелы)
+  content = content.replace(/&nbsp;/gi, '');
+  
+  // 3. Удалить раздел style из HTML
+  content = content.replace(/<style[\s\S]*?<\/style>/gi, '');
+  
+  // 3. Заменить <br> на <br /> (самозакрывающийся)
+  content = content.replace(/<br(\s[^>]*)?>/gi, '<br$1 />');
+  // Убедиться что есть пробел перед /> если нет атрибутов
+  content = content.replace(/<br\s*\/>/gi, '<br />');
+  
+  // 4. Добавить <?xml version='1.0'?> в начало файла если нет
+  if (!content.match(/^\s*<\?xml/)) {
+    content = '<?xml version=\'1.0\'?>\n' + content;
+  }
+  
+  // 5. Заменить <html> на <html xmlns="http://www.w3.org/1999/xhtml">
+  // Учитываем что у html тега могут быть атрибуты
+  content = content.replace(
+    /<html(\s[^>]*)?>/gi,
+    '<html$1 xmlns="http://www.w3.org/1999/xhtml">'
+  );
+  
+  // 6. Заменить <meta ...> на самозакрывающийся <meta ... />
+  content = content.replace(
+    /<meta(\s[^>]*)?>/gi,
+    (match, attrs) => {
+      if (match.trim().endsWith('/>')) {
+        return match;
+      }
+      return '<meta' + attrs + ' />';
+    }
+  );
+  
+  // 7. Заменить <link ...> на самозакрывающийся <link ... />
+  content = content.replace(
+    /<link(\s[^>]*)?>/gi,
+    (match, attrs) => {
+      if (match.trim().endsWith('/>')) {
+        return match;
+      }
+      return '<link' + attrs + ' />';
+    }
+  );
+  
+  // 8. Заменить <img ...> на самозакрывающийся <img ... />
+  content = content.replace(
+    /<img(\s[^>]*)?>/gi,
+    (match, attrs) => {
+      if (match.trim().endsWith('/>')) {
+        return match;
+      }
+      return '<img' + attrs + ' />';
+    }
+  );
+  
+  // 9. Заменить <hr ...> на самозакрывающийся <hr ... />
+  content = content.replace(
+    /<hr(\s[^>]*)?>/gi,
+    (match, attrs) => {
+      if (match.trim().endsWith('/>')) {
+        return match;
+      }
+      return '<hr' + attrs + ' />';
+    }
+  );
+  
+  return content;
+}
+
 // Преобразование ArrayBuffer в base64
 function uint8ArrayToBase64(bytes) {
   let binary = '';
@@ -648,7 +725,7 @@ async function downloadFile(url, sessionId) {
 }
 
 // Создать EPUB с использованием JSZip
-async function createEpub(metadata, bookId, bookTitle) {
+async function createEpub(metadata, bookId, bookTitle, validateFormat = false) {
   const safeTitle = sanitizeFileName(bookTitle || `Book_${bookId}`);
   
   // Создаем JSZip instance с настройками для EPUB
@@ -693,7 +770,36 @@ async function createEpub(metadata, bookId, bookTitle) {
       
       log(`Скачивание: ${href}`);
       const arrayBuffer = await downloadFile(url, sessionId);
-      zip.file(`OEBPS/${href}`, arrayBuffer);
+      
+      // Если включена валидация формата, применяем преобразования к HTML файлам
+      let fileContent = arrayBuffer;
+      if (validateFormat) {
+        // Проверяем, является ли файл HTML файлом
+        const isHtmlFile = /\.(html|xhtml|htm)$/i.test(href);
+        if (isHtmlFile) {
+          try {
+            // Конвертируем ArrayBuffer в строку
+            const decoder = new TextDecoder('utf-8');
+            const htmlString = decoder.decode(arrayBuffer);
+            
+            // Применяем валидацию и исправления
+            const validatedHtml = validateAndFixHtml(htmlString);
+            
+            // Конвертируем обратно в ArrayBuffer
+            const encoder = new TextEncoder();
+            const encoded = encoder.encode(validatedHtml);
+            fileContent = encoded.buffer;
+            
+            log(`Валидация применена к файлу: ${href}`);
+          } catch (err) {
+            log(`Ошибка валидации ${href}: ${err.message}`);
+            // Если ошибка, используем оригинальный контент
+            fileContent = arrayBuffer;
+          }
+        }
+      }
+      
+      zip.file(`OEBPS/${href}`, fileContent);
     } catch (error) {
       log(`Не удалось скачать ${href}: ${error.message}`);
     }
@@ -1198,7 +1304,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Начинаем анимацию иконки перед скачиванием
     startIconAnimation();
     
-    downloadBookAndSave(request.bookId, request.bookTitle)
+    downloadBookAndSave(request.bookId, request.bookTitle, request.validateFormat)
       .then(result => {
         // Останавливаем анимацию при успехе
         stopIconAnimation();
@@ -1324,8 +1430,8 @@ async function downloadBook(bookId, bookTitle) {
 }
 
 // Новая функция: скачивает и сохраняет файл через chrome.downloads API
-async function downloadBookAndSave(bookId, bookTitle) {
-  log(`Начало скачивания книги ${bookId}`);
+async function downloadBookAndSave(bookId, bookTitle, validateFormat = false) {
+  log(`Начало скачивания книги ${bookId}${validateFormat ? ' с валидацией формата' : ''}`);
   
   try {
     // 1. Получить секрет
@@ -1350,8 +1456,8 @@ async function downloadBookAndSave(bookId, bookTitle) {
     log(`Используем название: ${title} (из ${bookTitle ? 'страницы' : (opfTitle ? 'OPF' : 'фолбэк')})`);
     
     // 5. Создать EPUB
-    log('Создание EPUB...');
-    const epubResult = await createEpub(metadata, bookId, title);
+    log(`Создание EPUB${validateFormat ? ' с валидацией формата' : ''}...`);
+    const epubResult = await createEpub(metadata, bookId, title, validateFormat);
     
     // 6. Сохранить файл через chrome.downloads API
     log('Сохранение файла...');
