@@ -1,5 +1,5 @@
 // Popup.js - Логика интерфейса расширения
-// Version: 1.0.18
+// Version: 1.0.2
 
 let currentBookId = null;
 let currentBookTitle = null;
@@ -31,6 +31,33 @@ const checkAuthBtnEl = document.getElementById('checkAuthBtn');
 const authStatusEl = document.getElementById('authStatus');
 const authStatusIconEl = document.getElementById('authStatusIcon');
 const authStatusTextEl = document.getElementById('authStatusText');
+
+// Элементы чекбокса проверки формата
+const validateFormatCheckboxEl = document.getElementById('validateFormatCheckbox');
+const validateFormatContainerEl = document.getElementById('validateFormatContainer');
+
+// Константа для хранения состояния чекбокса
+const VALIDATE_FORMAT_STORAGE_KEY = 'validateFormatEnabled';
+
+// Получить сохранённое состояние чекбокса (по умолчанию true)
+async function getValidateFormatState() {
+  try {
+    const { validateFormatEnabled } = await browser.storage.local.get('validateFormatEnabled');
+    return validateFormatEnabled !== false; // По умолчанию true
+  } catch (error) {
+    console.log('[Popup] Ошибка получения состояния чекбокса:', error);
+    return true; // Фолбэк на true
+  }
+}
+
+// Сохранить состояние чекбокса
+async function setValidateFormatState(enabled) {
+  try {
+    await browser.storage.local.set({ validateFormatEnabled: enabled });
+  } catch (error) {
+    console.log('[Popup] Ошибка сохранения состояния чекбокса:', error);
+  }
+}
 
 // Инициализировать localForage в popup
 const archives = localforage.createInstance({
@@ -455,7 +482,7 @@ function hideStatus() {
 }
 
 // Показать информацию о книге
-function showBookInfo(bookId, bookType = 'book') {
+async function showBookInfo(bookId, bookType = 'book') {
   bookIdEl.textContent = bookId;
   bookInfoEl.classList.remove('hidden');
   
@@ -466,9 +493,25 @@ function showBookInfo(bookId, bookType = 'book') {
   downloadAudioBtn.classList.add('hidden');
   if (downloadComicBtn) downloadComicBtn.classList.add('hidden');
   
+  // Управление чекбоксом проверки формата
+  if (validateFormatContainerEl && validateFormatCheckboxEl) {
+    if (bookType === 'audio' || bookType === 'comic') {
+      // Скрываем чекбокс для аудиокниг и комиксов
+      validateFormatContainerEl.classList.add('hidden');
+    } else {
+      // Показываем чекбокс для обычных книг
+      validateFormatContainerEl.classList.remove('hidden');
+      // Восстанавливаем сохранённое состояние
+      const savedState = await getValidateFormatState();
+      validateFormatCheckboxEl.checked = savedState;
+    }
+  }
+  
   // Показываем кнопки в зависимости от типа
   if (bookType === 'audio') {
-    // Для аудиокниг показываем обе кнопки
+    // Для аудиокниг проверяем, есть ли текст (EPUB) кроме аудио
+    // Пока показываем обе кнопки (EPUB может содержать текст + аудио)
+    // Если нужно скрывать EPUB если только аудио - нужно проверять метаданные
     downloadBtn.classList.remove('hidden');
     downloadAudioBtn.classList.remove('hidden');
     downloadBtn.disabled = false;
@@ -499,6 +542,9 @@ function hideBookInfo() {
 async function startDownload() {
   if (!currentBookId) return;
   
+  // Получаем состояние чекбокса
+  const validateFormat = validateFormatCheckboxEl ? validateFormatCheckboxEl.checked : true;
+  
   setLoading(true);
   progressEl.classList.remove('hidden');
   hideError();
@@ -509,7 +555,8 @@ async function startDownload() {
     const response = await browser.runtime.sendMessage({
       action: 'downloadBook',
       bookId: currentBookId,
-      bookTitle: currentBookTitle
+      bookTitle: currentBookTitle,
+      validateFormat: validateFormat
     });
     
     if (response.success) {
@@ -840,6 +887,14 @@ if (checkAuthBtnEl) {
 // Запуск при открытии popup
 init();
 checkAuthStatus();
+
+// Обработчик изменения состояния чекбокса
+if (validateFormatCheckboxEl) {
+  validateFormatCheckboxEl.addEventListener('change', (e) => {
+    setValidateFormatState(e.target.checked);
+    console.log('[Popup] Состояние чекбокса:', e.target.checked);
+  });
+}
 
 // Обновление при изменении активной вкладки
 browser.tabs.onActivated.addListener(async () => {

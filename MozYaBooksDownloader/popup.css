@@ -224,3 +224,36 @@ footer {
 .hidden {
   display: none !important;
 }
+
+/* Стили для чекбокса проверки формата */
+.validate-format-container {
+  margin-bottom: 10px;
+}
+
+.validate-format-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #555;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f0f4f8;
+  transition: background 0.2s;
+}
+
+.validate-format-label:hover {
+  background: #e1e8ed;
+}
+
+.validate-format-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4CAF50;
+}
+
+.validate-format-label .checkmark {
+  display: inline-block;
+}

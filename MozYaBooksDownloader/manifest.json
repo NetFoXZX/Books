@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Yandex Books Downloader by NeTFoXZX",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Скачивайте книги, аудиокниги и комиксы с Yandex Books",
   "browser_specific_settings": {
     "gecko": {

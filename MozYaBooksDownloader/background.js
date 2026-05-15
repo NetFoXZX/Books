@@ -513,6 +513,68 @@ function uint8ArrayToBase64(bytes) {
   return btoa(binary);
 }
 
+// ==================== Функции обработки HTML для EPUB ====================
+
+// Обработать HTML контент для соответствия стандартам EPUB
+function processHtmlContent(htmlContent) {
+  let processed = htmlContent;
+  
+  // 1. Добавить <?xml version='1.0'?> в начало файла (если еще нет)
+  if (!processed.trim().startsWith('<?xml')) {
+    processed = '<?xml version="1.0" encoding="UTF-8"?>\n' + processed;
+  }
+  
+  // 2. Удалить <!DOCTYPE html> если есть
+  processed = processed.replace(/<!DOCTYPE\s+html[^>]*>/gi, '');
+  
+  // 3. Заменить <html> на <html xmlns="http://www.w3.org/1999/xhtml">
+  processed = processed.replace(
+    /<html(\s[^>]*)?>/gi,
+    '<html xmlns="http://www.w3.org/1999/xhtml"$1>'
+  );
+  
+  // 4. Заменить незакрытые теги meta на самозакрывающиеся <meta />
+  processed = processed.replace(
+    /<meta(\s[^>]*)?>/g,
+    '<meta$1 />'
+  );
+  
+  // 5. Заменить незакрытые теги link на самозакрывающиеся <link />
+  processed = processed.replace(
+    /<link(\s[^>]*)?>/g,
+    '<link$1 />'
+  );
+  
+  // 6. Заменить незакрытые теги img на самозакрывающиеся <img />
+  processed = processed.replace(
+    /<img(\s[^>]*)?>/g,
+    '<img$1 />'
+  );
+  
+  // 7. Заменить незакрытые теги hr на самозакрывающиеся <hr />
+  processed = processed.replace(
+    /<hr(\s[^>]*)?>/g,
+    '<hr$1 />'
+  );
+  
+  // 8. Заменить <br> на <br />
+  processed = processed.replace(
+    /<br(\s[^>]*)?>/g,
+    '<br$1 />'
+  );
+  
+  // 9. Удалить &nbsp; символы
+  processed = processed.replace(/&nbsp;/gi, ' ');
+  
+  // 10. Удалить <style>...</style> секции
+  processed = processed.replace(/<style[\s\S]*?<\/style>/gi, '');
+  
+  // 11. Удалить <script>...</script> секции (для чистоты)
+  processed = processed.replace(/<script[\s\S]*?<\/script>/gi, '');
+  
+  return processed;
+}
+
 // Конвертация ArrayBuffer в base64 с использованием chunk-подхода для экономии памяти
 // Работает в Service Worker без FileReader
 function arrayBufferToBase64(arrayBuffer) {
@@ -648,7 +710,7 @@ async function downloadFile(url, sessionId) {
 }
 
 // Создать EPUB с использованием JSZip
-async function createEpub(metadata, bookId, bookTitle) {
+async function createEpub(metadata, bookId, bookTitle, validateFormat = true) {
   const safeTitle = sanitizeFileName(bookTitle || `Book_${bookId}`);
   
   // Создаем JSZip instance с настройками для EPUB
@@ -693,7 +755,21 @@ async function createEpub(metadata, bookId, bookTitle) {
       
       log(`Скачивание: ${href}`);
       const arrayBuffer = await downloadFile(url, sessionId);
-      zip.file(`OEBPS/${href}`, arrayBuffer);
+      
+      // Если требуется валидация формата и это HTML файл, обрабатываем контент
+      if (validateFormat && /\.(html|xhtml|htm)$/i.test(href)) {
+        try {
+          const htmlContent = new TextDecoder('utf-8').decode(arrayBuffer);
+          const processedContent = processHtmlContent(htmlContent);
+          log(`Обработан HTML файл: ${href}`);
+          zip.file(`OEBPS/${href}`, processedContent);
+        } catch (err) {
+          log(`Ошибка обработки HTML ${href}: ${err.message}, используем оригинал`);
+          zip.file(`OEBPS/${href}`, arrayBuffer);
+        }
+      } else {
+        zip.file(`OEBPS/${href}`, arrayBuffer);
+      }
     } catch (error) {
       log(`Не удалось скачать ${href}: ${error.message}`);
     }
@@ -1209,7 +1285,10 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Начинаем анимацию иконки перед скачиванием
     startIconAnimation();
     
-    downloadBookAndSave(request.bookId, request.bookTitle)
+    // Получаем параметр validateFormat из сообщения (по умолчанию true)
+    const validateFormat = request.validateFormat !== false;
+    
+    downloadBookAndSave(request.bookId, request.bookTitle, validateFormat)
       .then(result => {
         // Останавливаем анимацию при успехе
         stopIconAnimation();
@@ -1317,7 +1396,7 @@ async function downloadBook(bookId, bookTitle) {
 }
 
 // Новая функция: скачивает и сохраняет файл в IndexedDB
-async function downloadBookAndSave(bookId, bookTitle) {
+async function downloadBookAndSave(bookId, bookTitle, validateFormat = true) {
   log(`Начало скачивания книги ${bookId}`);
   
   try {
@@ -1342,9 +1421,9 @@ async function downloadBookAndSave(bookId, bookTitle) {
     
     log(`Используем название: ${title} (из ${bookTitle ? 'страницы' : (opfTitle ? 'OPF' : 'фолбэк')})`);
     
-    // 5. Создать EPUB
-    log('Создание EPUB...');
-    const epubResult = await createEpub(metadata, bookId, title);
+    // 5. Создать EPUB с валидацией формата
+    log(`Создание EPUB... (validateFormat: ${validateFormat})`);
+    const epubResult = await createEpub(metadata, bookId, title, validateFormat);
     
     // 6. Сохранить файл в IndexedDB
     log('Сохранение файла в IndexedDB...');
